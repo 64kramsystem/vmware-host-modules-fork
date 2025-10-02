@@ -30,6 +30,7 @@
 #include <linux/slab.h>
 #include <linux/smp.h>
 #include <linux/wait.h>
+#include <linux/timer.h>
 
 #include <asm/hw_irq.h> /* for CALL_FUNCTION_VECTOR */
 
@@ -346,7 +347,7 @@ LinuxDriverExit(void)
 
    Log("Module %s: unloaded\n", vmmon_miscdev.name);
 
-   del_timer_sync(&tscTimer);
+   timer_delete_sync(&tscTimer);
 
    Vmx86_CleanupHVIOBitmap();
    Task_Terminate();

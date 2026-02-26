@@ -1,5 +1,5 @@
 /*********************************************************
- * Copyright (c) 1998-2024 Broadcom. All Rights Reserved.
+ * Copyright (c) 1998-2025 Broadcom. All Rights Reserved.
  * The term "Broadcom" refers to Broadcom Inc. and/or its subsidiaries.
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -47,7 +47,10 @@
 #define LOG(level, args)
 #endif
 
+/* For Kernel >=6.11 and Redhat 9(Backported Kernel) MAX is defined minmax.h */
+#ifndef MAX
 #define MAX(_a, _b)   (((_a) > (_b)) ? (_a) : (_b))
+#endif
 
 /*
  * Ethernet
@@ -98,15 +101,11 @@
  */
 typedef int (VNetProcReadFn)(char *page, char **start, off_t off,
                              int count, int *eof, void *data);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
 typedef struct VNetProcEntry {
    struct proc_dir_entry *pde;   /* Procfs node entry. */
    void *data;                   /* User data. */
    VNetProcReadFn *fn;           /* Callback fuction to read node. */
 } VNetProcEntry;
-#else
-typedef struct proc_dir_entry VNetProcEntry;
-#endif
 
 typedef struct VNetJack VNetJack;
 typedef struct VNetPort VNetPort;

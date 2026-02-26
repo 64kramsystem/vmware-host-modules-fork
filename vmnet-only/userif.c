@@ -71,12 +71,31 @@ typedef struct VNetUserIF {
    struct page*           recvClusterPage;
    VNetUserIFStats        stats;
    VNetEvent_Sender      *eventSender;
+   /*
+    * Delayed work used to debounce link-down events.  When a link-down
+    * request arrives it is not delivered immediately; instead it is
+    * scheduled after VNET_LINKDOWN_DEBOUNCE_MS.  A link-up request that
+    * arrives within that window cancels the pending work, so spurious
+    * down/up pairs (e.g. triggered by DHCP lease renewals on the host)
+    * are absorbed without ever reaching the guest.  A genuine link-down
+    * that is not followed by a link-up is delivered once the timer fires.
+    */
+   struct delayed_work    linkDownWork;
 } VNetUserIF;
 
 static void VNetUserIfUnsetupNotify(VNetUserIF *userIf);
 static int  VNetUserIfSetupNotify(VNetUserIF *userIf, VNet_Notify *vn);
 static int  VNetUserIfSetUplinkState(VNetPort *port, uint8 linkUp);
+static void VNetUserIfLinkDownWork(struct work_struct *work);
 extern unsigned int  vnet_max_qlen;
+
+/*
+ * Time in milliseconds to wait before delivering a link-down event to the
+ * guest.  This debounce window absorbs transient down/up pairs that the host
+ * network stack can produce (e.g. during DHCP lease renewal or interface
+ * reconfiguration) without ever disconnecting the guest's virtual NIC.
+ */
+#define VNET_LINKDOWN_DEBOUNCE_MS  500
 
 #if COMPAT_LINUX_VERSION_CHECK_LT(5, 4, 0) && \
     !(defined(CONFIG_SUSE_VERSION) && CONFIG_SUSE_VERSION == 15 && \
@@ -331,6 +350,7 @@ VNetUserIfFree(VNetJack *this) // IN
       VNetUserIfUnsetupNotify(userIf);
    }
 
+   cancel_delayed_work_sync(&userIf->linkDownWork);
    if (userIf->eventSender) {
       VNetEvent_DestroySender(userIf->eventSender);
    }
@@ -996,40 +1016,31 @@ VNetUserIfPoll(VNetPort     *port, // IN
 /*
  *----------------------------------------------------------------------
  *
- * VNetUserIfSetUplinkState --
+ * VNetUserIfSendLinkEvent --
  *
- *      Sends link state change event.
- * 
- * Results: 
+ *      Build and dispatch a link-state event through the hub's event
+ *      system.  The caller must have already created userIf->eventSender.
+ *      Re-validates the port/hub connection before sending so it is safe
+ *      to call from both the ioctl path and the deferred work handler.
+ *
+ * Results:
  *      0 on success, errno on failure.
  *
  * Side effects:
- *      Link state event is sent to all the event listeners
+ *      Link state event is sent to all event listeners.
  *
  *----------------------------------------------------------------------
  */
 
-int
-VNetUserIfSetUplinkState(VNetPort *port, uint8 linkUp)
+static int
+VNetUserIfSendLinkEvent(VNetUserIF *userIf, // IN
+                        uint8 linkUp)       // IN
 {
-   VNetUserIF *userIf;
-   VNetJack *hubJack;
    VNet_LinkStateEvent event;
    int retval;
 
-   userIf = (VNetUserIF *)port->jack.private;
-   hubJack = port->jack.peer;
-
-   if (port->jack.state == FALSE || hubJack == NULL) {
+   if (userIf->port.jack.state == FALSE || userIf->port.jack.peer == NULL) {
       return -EINVAL;
-   }
-
-   if (userIf->eventSender == NULL) {
-      /* create event sender */
-      retval = VNetHub_CreateSender(hubJack, &userIf->eventSender);
-      if (retval != 0) {
-         return retval;
-      }
    }
 
    event.header.size = sizeof event;
@@ -1042,7 +1053,7 @@ VNetUserIfSetUplinkState(VNetPort *port, uint8 linkUp)
    event.header.eventId = 0;
    event.header.classSet = VNET_EVENT_CLASS_UPLINK;
    event.header.type = VNET_EVENT_TYPE_LINK_STATE;
-   /* 
+   /*
     * XXX kind of a hack, vmx will coalesce linkup/down if they come from the
     * same adapter.
     */
@@ -1056,6 +1067,107 @@ VNetUserIfSetUplinkState(VNetPort *port, uint8 linkUp)
 
    LOG(0, (KERN_NOTICE "userif-%d: sent link %s event.\n",
         userIf->port.id, linkUp ? "up" : "down"));
+
+   return retval;
+}
+
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * VNetUserIfLinkDownWork --
+ *
+ *      Deferred work handler that delivers a link-down event to the guest
+ *      after the debounce window has elapsed.  If a link-up request arrived
+ *      during the window, VNetUserIfSetUplinkState will have cancelled this
+ *      work before it runs, so reaching here means the link-down is genuine.
+ *
+ * Results:
+ *      None.
+ *
+ * Side effects:
+ *      Link-down event is sent to all event listeners.
+ *
+ *----------------------------------------------------------------------
+ */
+
+static void
+VNetUserIfLinkDownWork(struct work_struct *work)
+{
+   VNetUserIF *userIf = container_of(to_delayed_work(work),
+                                     VNetUserIF, linkDownWork);
+
+   VNetUserIfSendLinkEvent(userIf, 0);
+}
+
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * VNetUserIfSetUplinkState --
+ *
+ *      Sends link state change event, with debouncing for link-down.
+ *
+ *      Link-up events are delivered immediately after cancelling any
+ *      pending link-down work.  Link-down events are deferred by
+ *      VNET_LINKDOWN_DEBOUNCE_MS; a link-up that arrives within that
+ *      window cancels the pending work so no spurious disconnection
+ *      reaches the guest.
+ *
+ * Results:
+ *      0 on success, errno on failure.
+ *
+ * Side effects:
+ *      Link state event is sent (possibly deferred) to all event listeners.
+ *
+ *----------------------------------------------------------------------
+ */
+
+int
+VNetUserIfSetUplinkState(VNetPort *port, uint8 linkUp)
+{
+   VNetUserIF *userIf;
+   VNetJack *hubJack;
+   int retval;
+
+   userIf = (VNetUserIF *)port->jack.private;
+   hubJack = port->jack.peer;
+
+   if (port->jack.state == FALSE || hubJack == NULL) {
+      return -EINVAL;
+   }
+
+   /*
+    * Ensure the event sender exists before scheduling any work: the work
+    * handler has no way to propagate a creation error back to the caller.
+    */
+   if (userIf->eventSender == NULL) {
+      retval = VNetHub_CreateSender(hubJack, &userIf->eventSender);
+      if (retval != 0) {
+         return retval;
+      }
+   }
+
+   if (linkUp) {
+      /*
+       * Cancel any pending link-down work, then send link-up immediately.
+       * cancel_delayed_work_sync ensures the work handler is not running
+       * concurrently while we deliver link-up, keeping event order
+       * deterministic.
+       */
+      cancel_delayed_work_sync(&userIf->linkDownWork);
+      retval = VNetUserIfSendLinkEvent(userIf, 1);
+   } else {
+      /*
+       * Debounce link-down: schedule (or reschedule) the deferred work.
+       * mod_delayed_work resets the timer if work is already pending, so
+       * a rapid sequence of link-down requests results in a single
+       * delivery after the full debounce interval.
+       */
+      mod_delayed_work(system_wq, &userIf->linkDownWork,
+                       msecs_to_jiffies(VNET_LINKDOWN_DEBOUNCE_MS));
+      retval = 0;
+   }
 
    return retval;
 }
@@ -1151,6 +1263,7 @@ VNetUserIf_Create(VNetPort **ret) // OUT
    
    skb_queue_head_init(&(userIf->packetQueue));
    init_waitqueue_head(&userIf->waitQueue);
+   INIT_DELAYED_WORK(&userIf->linkDownWork, VNetUserIfLinkDownWork);
 
    memset(&userIf->stats, 0, sizeof userIf->stats);
    

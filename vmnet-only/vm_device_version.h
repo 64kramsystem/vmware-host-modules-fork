@@ -36,6 +36,8 @@
 #endif
 #endif
 
+#include <linux/pci_ids.h>
+
 /* LSILogic 53C1030 Parallel SCSI controller
  * LSILogic SAS1068 SAS controller
  */
@@ -55,7 +57,10 @@
  *    VMware HD Audio codec
  *    VMware HD Audio controller
  */
+#ifndef PCI_VENDOR_ID_VMWARE
 #define PCI_VENDOR_ID_VMWARE                    0x15AD
+#endif
+
 #define PCI_DEVICE_ID_VMWARE_SBX                0x0420
 #define PCI_DEVICE_ID_VMWARE_SVGA4_DO           0x0411
 #define PCI_DEVICE_ID_VMWARE_SVGA4_RO           0x0410
@@ -80,7 +85,11 @@
 #define PCI_DEVICE_ID_VMWARE_1394               0x0780
 #define PCI_DEVICE_ID_VMWARE_BRIDGE             0x0790
 #define PCI_DEVICE_ID_VMWARE_ROOTPORT           0x07A0
+
+#ifndef PCI_DEVICE_ID_VMWARE_VMXNET3
 #define PCI_DEVICE_ID_VMWARE_VMXNET3            0x07B0
+#endif
+
 #define PCI_DEVICE_ID_VMWARE_PVSCSI             0x07C0
 #define PCI_DEVICE_ID_VMWARE_82574              0x07D0
 #define PCI_DEVICE_ID_VMWARE_AHCI               0x07E0
@@ -138,19 +147,27 @@
  *   BusLogic SCSI controller
  *   Ensoniq ES1371 sound controller
  */
+#ifndef PCI_VENDOR_ID_AMD
 #define PCI_VENDOR_ID_AMD               0x1022
+#endif
 #define PCI_DEVICE_ID_AMD_VLANCE        0x2000
 #define PCI_DEVICE_ID_AMD_IOMMU         0x1577
+#ifndef PCI_VENDOR_ID_BUSLOGIC
 #define PCI_VENDOR_ID_BUSLOGIC			0x104B
 #define PCI_DEVICE_ID_BUSLOGIC_MULTIMASTER_NC	0x0140
 #define PCI_DEVICE_ID_BUSLOGIC_MULTIMASTER	0x1040
+#endif
+#ifndef PCI_VENDOR_ID_ENSONIQ
 #define PCI_VENDOR_ID_ENSONIQ           0x1274
 #define PCI_DEVICE_ID_ENSONIQ_ES1371    0x1371
+#endif
 
 /*
  * AMD MI210, MI300, MI325 GPU
  */
+#ifndef PCI_VENDOR_ID_ATI
 #define PCI_VENDOR_ID_ATI               0x1002
+#endif
 
 /* From linux/pci_ids.h:
  *    Intel 82439TX (430 HX North Bridge)
@@ -162,7 +179,10 @@
  *    Intel XHCI (Panther Point / Intel 7 Series, 5Gbps)
  *    Intel XHCI (Cannon Lake / Intel 300 Series, 10Gbps)
  */
+#ifndef PCI_VENDOR_ID_INTEL
 #define PCI_VENDOR_ID_INTEL                   0x8086
+#endif
+#ifndef PCI_DEVICE_ID_INTEL_82439TX
 #define PCI_DEVICE_ID_INTEL_82439TX           0x7100
 #define PCI_DEVICE_ID_INTEL_82371AB_0         0x7110
 #define PCI_DEVICE_ID_INTEL_82371AB_2         0x7112
@@ -171,11 +191,14 @@
 #define PCI_DEVICE_ID_INTEL_82443BX           0x7190
 #define PCI_DEVICE_ID_INTEL_82443BX_1         0x7191
 #define PCI_DEVICE_ID_INTEL_82443BX_2         0x7192 /* Used when no AGP support */
+#endif
 #define PCI_DEVICE_ID_INTEL_82545EM           0x100f
 #define PCI_DEVICE_ID_INTEL_82546EB           0x1010
 #define PCI_DEVICE_ID_INTEL_82574             0x10d3
 #define PCI_DEVICE_ID_INTEL_82574_APPLE       0x10f6
+#ifndef PCI_DEVICE_ID_INTEL_PANTHERPOINT_XHCI
 #define PCI_DEVICE_ID_INTEL_PANTHERPOINT_XHCI 0x1e31
+#endif
 #define PCI_DEVICE_ID_INTEL_CANNONLAKE_XHCI   0xa36d
 
 /*
@@ -194,11 +217,15 @@
 /*
  * Intel Quickassist (QAT) devices.
  */
+#ifndef PCI_DEVICE_ID_INTEL_QAT_DH895XCC
 #define PCI_DEVICE_ID_INTEL_QAT_DH895XCC     0x0435
 #define PCI_DEVICE_ID_INTEL_QAT_DH895XCC_VF  0x0443
+#endif
 
+#ifndef PCI_DEVICE_ID_INTEL_QAT_C62X
 #define PCI_DEVICE_ID_INTEL_QAT_C62X         0x37c8
 #define PCI_DEVICE_ID_INTEL_QAT_C62X_VF      0x37c9
+#endif
 
 /*
  * Intel/Habana AI accelerators.
@@ -223,7 +250,9 @@
  * Intel HD Audio controller and Realtek ALC885 codec.
  */
 #define PCI_DEVICE_ID_INTEL_631XESB_632XESB  0x269a
+#ifndef PCI_VENDOR_ID_REALTEK
 #define PCI_VENDOR_ID_REALTEK                0x10ec
+#endif
 #define PCI_DEVICE_ID_REALTEK_ALC885         0x0885
 
 
@@ -238,7 +267,9 @@
 /*
  * NEC/Renesas xHCI (USB 3.0) Controller
  */
+#ifndef PCI_VENDOR_ID_NEC
 #define PCI_VENDOR_ID_NEC               0x1033
+#endif
 #define PCI_DEVICE_ID_NEC_UPD720200     0x0194
 #define PCI_REVISION_NEC_UPD720200      0x03
 #define PCI_FIRMWARE_NEC_UPD720200      0x3015

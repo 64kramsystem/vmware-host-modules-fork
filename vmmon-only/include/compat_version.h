@@ -46,7 +46,7 @@
  */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)
    /* Straight forward comparison if kernel version is 4.0.0 and beyond */
-#   define COMPAT_LINUX_VERSION_CHECK_LT(a, b, c) LINUX_VERSION_CODE < KERNEL_VERSION (a, b, c)
+#   define COMPAT_LINUX_VERSION_CHECK_LT(a, b, c) (LINUX_VERSION_CODE < KERNEL_VERSION (a, b, c))
 #endif
 
 #if defined(RHEL_RELEASE_CODE) && defined(RHEL_RELEASE_VERSION)

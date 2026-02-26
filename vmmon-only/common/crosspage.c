@@ -53,6 +53,15 @@
 #   elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 18, 0)
 #      include <linux/frame.h>
 #   endif
+/*
+ * ASM_ENDBR is defined in <asm/ibt.h> on kernels >= 5.18 that support
+ * Indirect Branch Tracking.  Include it explicitly so that the #ifndef
+ * fallback below actually yields to the kernel's definition on IBT-enabled
+ * builds rather than always silently expanding to nothing.
+ */
+#   if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0)
+#      include <asm/ibt.h>
+#   endif
 #endif
 
 #include "modulecall.h"
@@ -76,7 +85,9 @@
 
 #define EXPORTED_ASM_SYMBOL(fn) ".global " ASM_PREFIX #fn "\n"   \
                                 ASM_PREFIX #fn ":\n"
-#define ENDBR ".byte 0xf3, 0x0f, 0x1e, 0xfa\n"
+#ifndef ASM_ENDBR
+#define ASM_ENDBR
+#endif
 
 /*
  * Tag the crosspage code C wrapper with the crosspage section and page
@@ -328,7 +339,7 @@ CrossPage_CodePage(void)
 
    ".p2align 4\n"
    EXPORTED_ASM_SYMBOL(SwitchDBHandler)
-   ENDBR
+   ASM_ENDBR
    "pushq        %%rax\n"
 
    SwitchExcGetCrossPageData
@@ -369,7 +380,7 @@ CrossPage_CodePage(void)
 
    ".p2align 4\n"
    EXPORTED_ASM_SYMBOL(SwitchUDHandler)
-   ENDBR
+   ASM_ENDBR
    "pushq        %%rax\n"
    "pushq        %%rbx\n"
    "pushq        %%rcx\n"
@@ -440,7 +451,7 @@ CrossPage_CodePage(void)
 
    ".p2align 4\n"
    EXPORTED_ASM_SYMBOL(SwitchNMIHandler)
-   ENDBR
+   ASM_ENDBR
    "pushq        %%rax\n"
 
    SwitchExcGetCrossPageData
@@ -478,7 +489,7 @@ CrossPage_CodePage(void)
 
    ".p2align 4\n"
    EXPORTED_ASM_SYMBOL(SwitchMCEHandler)
-   ENDBR
+   ASM_ENDBR
    "pushq        %%rax\n"
 
    SwitchExcGetCrossPageData
@@ -601,7 +612,7 @@ CrossPage_CodePage(void)
 
    ".p2align 4\n"
    EXPORTED_ASM_SYMBOL(VmmToHost)
-   ENDBR
+   ASM_ENDBR
    "movq            %c[VMMCROSSPAGE] + %c[crosspageDataLA], %%rcx\n"
    /* Create an lret frame on the monitor stack. */
    "pushq           (%%rsp)\n"

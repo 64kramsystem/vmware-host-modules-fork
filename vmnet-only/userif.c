@@ -549,7 +549,6 @@ VNetCsumAndCopyToUser(const void *src,   // IN: Source
       *err = -EFAULT;
       return 0;
    }
-   *err = 0;
 #endif
    return csum;
 }
